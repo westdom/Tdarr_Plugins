@@ -63,6 +63,7 @@ var details = function () { return ({
                     'post',
                     'put',
                     'delete',
+                    'patch'
                 ],
             },
             tooltip: 'Specify request method',
