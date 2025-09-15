@@ -30,7 +30,7 @@ const details = (): IpluginDetails => ({
           'post',
           'put',
           'delete',
-          'patch'
+          'patch',
         ],
       },
       tooltip: 'Specify request method',
