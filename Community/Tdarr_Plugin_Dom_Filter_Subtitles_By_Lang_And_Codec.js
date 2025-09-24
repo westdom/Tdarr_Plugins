@@ -89,9 +89,9 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
   // Validate inputs exist
   if (
     inputs.languages_csv === undefined
-    || inputs.codecs_csv === undefined
-    || inputs.remove_forced === undefined
-    || inputs.only_keep_first_per_language === undefined
+        || inputs.codecs_csv === undefined
+        || inputs.remove_forced === undefined
+        || inputs.only_keep_first_per_language === undefined
   ) {
     response.processFile = false;
     response.infoLog += '☒ Inputs not entered!\n';
@@ -136,6 +136,9 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
     const codec = getCodec(s);
     return `${lang}::${codec}`;
   };
+  const chiSubStreamsHaveTraditionalAndChinese = (languagesList.includes('zho') || languagesList.includes('chi'))
+        && allSubtitleStreams.some((s) => s.tags.title.toLowerCase().includes('simplified'))
+        && allSubtitleStreams.some((s) => s.tags.title.toLowerCase().includes('traditional'));
 
   const seenPairs = new Set();
   const candidateStreams = allSubtitleStreams
@@ -154,6 +157,8 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
     })
     .filter((s) => {
       if (!onlyKeepFirstPerLanguage) return true;
+      if (chiSubStreamsHaveTraditionalAndChinese && s.tags.title.toLowerCase().includes('traditional')) return false;
+
       const key = getSetKey(s);
       if (seenPairs.has(key)) return false;
       seenPairs.add(key);
@@ -174,10 +179,9 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
   response.infoLog += `Keeping ${keptIndexes.size} subtitle stream(s); removing ${unwantedSubtitleStreams.length}.\n`;
 
   // Construct ffmpeg mapping: keep everything, then subtract unwanted subtitle streams
-  const command = `-y <io> -map 0 -c copy${
-    unwantedSubtitleStreams
-      .map((s) => ` -map -0:${s.index}`)
-      .join('')}`;
+  const command = `-y <io> -map 0 -c copy${unwantedSubtitleStreams
+    .map((s) => ` -map -0:${s.index}`)
+    .join('')}`;
 
   response.preset = command;
   return response;
