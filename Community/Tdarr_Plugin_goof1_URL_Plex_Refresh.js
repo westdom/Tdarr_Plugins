@@ -188,7 +188,7 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
 
   const portIfUsed = port ? `:${port}` : '';
   const urlNoToken = `${type}://${url}${portIfUsed}/library/sections/${key}/refresh?`
-    + `path=${encodeURIComponent(filePath)}&X-Plex-Token=`;
+    + `path=${encodeURIComponent(filePath)}&force=1&X-Plex-Token=`;
 
   if (type === 'http') {
     await new Promise((resolve) => {
