@@ -182,7 +182,7 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
   };
 
   const findShowRatingKeyBySlug = (xmlText, title) => {
-    const escTitleLocal = title.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const escTitleLocal = title.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '');
     const titleNeedleLocal = `slug="${escTitleLocal}`;
     const titleIdxLocal = xmlText.indexOf(titleNeedleLocal);
     if (titleIdxLocal === -1) return null;
@@ -290,8 +290,11 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
       const showTitle = pathSegments[pathSegments.length - 3].replace(/\s*\(\d{4}\)$/, '').trim().split(' ').join('-').toLowerCase() || '';
       const showRatingKey = findShowRatingKeyBySlug(libraryXml, showTitle);
       
+      console.log(showTitle, showRatingKey)
+
       if (showRatingKey) {
         const seasonIndex = determineSeasonIndexFromPath(pathSegments);
+        console.log(seasonIndex)
         if (seasonIndex !== null) {
           const seasonsResult = await fetchChildren(showRatingKey);
           if (seasonsResult.statusCode === 200 && seasonsResult.data) {
