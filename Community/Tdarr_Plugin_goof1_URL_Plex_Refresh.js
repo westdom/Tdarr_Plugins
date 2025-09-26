@@ -112,8 +112,6 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars,no-param-reassign
   inputs = lib.loadDefaultValues(inputs, details);
 
-  const http = require('http');
-  const https = require('https');
 
   const response = {
     file,
@@ -135,39 +133,64 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
     throw new Error('Url_Protocol, Plex_Url, Plex_Token, and Library_Key are all required');
   }
 
-  // Reusable helpers
-  const request = (method, targetUrl) => new Promise((resolve) => {
-    const redactedUrl = targetUrl.replace(token, '[redacted]');
-    const handler = (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => { resolve({ statusCode: res.statusCode, data, requestedUrl: redactedUrl }); });
-    };
-    const onError = (e) => { resolve({ statusCode: 0, data: '', requestedUrl: redactedUrl, error: e }); };
-    if (type === 'http') {
-      if (method === 'GET') {
-        http.get(targetUrl, handler).on('error', onError);
-      } else {
-        const req = http.request(targetUrl, { method }, handler);
-      req.on('error', onError);
-      req.end();
+  const fetchLibraryContents = async (libraryKey) => {
+    try {
+      const res = await fetch(`${baseUrl}/library/sections/${libraryKey}/all?X-Plex-Token=${token}`);
+      if (res.status === 200) {
+        return { success: true, data: await res.text() };
       }
-    } else if (type === 'https') {
-      if (method === 'GET') {
-        https.get(targetUrl, { rejectUnauthorized: false }, handler).on('error', onError);
-      } else {
-        const req = https.request(targetUrl, { method, rejectUnauthorized: false }, handler);
-      req.on('error', onError);
-      req.end();
-      }
-    } else {
-      resolve({ statusCode: 0, data: '', requestedUrl: redactedUrl, error: new Error(`Invalid protocol: ${type}`) });
+      response.infoLog += `Failed to list library contents. Status ${res.status}\n`;
+      return { success: false };
+    } catch (error) {
+      response.infoLog += `Error listing library contents: ${error.message}\n`;
+      return { success: false };
     }
-  });
+  };
 
-  const fetchLibraryContents = async (libraryKey) => request('GET', `${baseUrl}/library/sections/${libraryKey}/all?X-Plex-Token=${token}`);
-  const fetchChildren = async (ratingKey) => request('GET', `${baseUrl}/library/metadata/${encodeURIComponent(ratingKey)}/children?X-Plex-Token=${token}`);
-  const refreshRatingKey = async (ratingKey) => request('PUT', `${baseUrl}/library/metadata/${encodeURIComponent(ratingKey)}/refresh?X-Plex-Token=${token}`);
+  const fetchChildren = async (ratingKey) => {
+    try {
+      const res = await fetch(`${baseUrl}/library/metadata/${encodeURIComponent(ratingKey)}/children?X-Plex-Token=${token}`);
+      if (res.status === 200) {
+        return { success: true, data: await res.text() };
+      }
+      response.infoLog += `Failed to fetch children for ratingKey ${ratingKey}. Status ${res.status}\n`;
+      return { success: false };
+    } catch (error) {
+      response.infoLog += `Error fetching children for ratingKey ${ratingKey}: ${error.message}\n`;
+      return { success: false };
+    }
+  };
+
+  const refreshRatingKey = async (ratingKey) => {
+    try {
+      const res = await fetch(`${baseUrl}/library/metadata/${encodeURIComponent(ratingKey)}/refresh?X-Plex-Token=${token}`, { method: 'PUT' });
+      if (res.status === 200) {
+        response.infoLog += `☒ Refreshed Plex metadata for ratingKey ${ratingKey}\n`;
+        return { success: true };
+      }
+      response.infoLog += `Attempt to refresh ratingKey ${ratingKey} returned status ${res.status}\n`;
+      return { success: false };
+    } catch (error) {
+      response.infoLog += `Error refreshing ratingKey ${ratingKey}: ${error.message}\n`;
+      return { success: false };
+    }
+  };
+
+  const refreshFolder = async (folderPath) => {
+    try {
+      const res = await fetch(`${baseUrl}/library/sections/${key}/refresh?path=${encodeURIComponent(folderPath)}&X-Plex-Token=${token}`);
+      if (res.status === 200) {
+        response.infoLog += '☒ Above shown folder scanned in Plex! \n';
+        return { success: true };
+      }
+      response.infoLog += `Failed to refresh folder. Status ${res.status}\n`;
+      return { success: false };
+    } catch (error) {
+      response.infoLog += `Error refreshing folder: ${error.message}\n`;
+      return { success: false };
+    }
+  };
+
 
   const findVideoRatingKeyByFile = (xmlText, filePath) => {
     const needleLocal = `file="${filePath.replace(/"/g, '\\"').replace(/'/g, '&#39;')}"`;
@@ -226,19 +249,6 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
     return null;
   };
 
-  const checkReply = (response, statusCode, urlNoToken) => {
-    if (statusCode === 200) {
-      response.infoLog += '☒ Above shown folder scanned in Plex! \n';
-    } else if (statusCode === 401) {
-      response.infoLog += 'Plex replied that the token was not authorized on this server \n';
-    } else if (statusCode === 404) {
-      response.infoLog += `404 Plex not found, http/https is set properly? The URL used was 
-    ${urlNoToken}[redacted] \n`;
-    } else {
-      response.infoLog += `There was an issue reaching Plex. The URL used was 
-    ${urlNoToken}[redacted] \n`;
-    }
-  };
 
   // Compute the full file path as Plex sees it, then the folder path for fallback
   let plexFilePath = file.file;
@@ -255,32 +265,19 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
 
   // Always attempt to refresh by folder path (without force)
   response.infoLog += `Attempting folder refresh for ${plexFolderPath}\n`;
-  const refreshUrl = `${baseUrl}/library/sections/${key}/refresh?path=${encodeURIComponent(
-    plexFolderPath,
-  )}&X-Plex-Token=${token}`;
-  const folderRefreshResult = await request('GET', refreshUrl);
-  checkReply(
-    folderRefreshResult,
-    refreshUrl.substring(0, refreshUrl.indexOf('X-Plex-Token')),
-  );
+  await refreshFolder(plexFolderPath);
 
   // Attempt to refresh the specific item
   const listResult = await fetchLibraryContents(key);
-  if (listResult.statusCode === 200 && listResult.data) {
+  if (listResult.success && listResult.data) {
     const libraryXml = listResult.data;
 
     // Method 1: Find movie or episode directly by file path
     const videoRatingKey = findVideoRatingKeyByFile(libraryXml, plexFilePath);
     if (videoRatingKey) {
-      const putRes = await refreshRatingKey(videoRatingKey);
-      if (putRes.statusCode === 200) {
-        response.infoLog += `☒ Refreshed Plex metadata for ratingKey ${videoRatingKey}\n`;
+      const refreshResult = await refreshRatingKey(videoRatingKey);
+      if (refreshResult.success) {
         itemRefreshed = true;
-      } else {
-        const errInfo = putRes.error
-          ? ` Error: ${putRes.error.message || putRes.error}`
-          : '';
-        response.infoLog += `Attempt to refresh ratingKey ${videoRatingKey} returned status ${putRes.statusCode}. URL: ${putRes.requestedUrl}.${errInfo}\n`;
       }
     } else {
       // Method 2: Fallback for TV shows if direct file match fails
@@ -290,53 +287,34 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
       const showTitle = pathSegments[pathSegments.length - 3].replace(/\s*\(\d{4}\)$/, '').trim().split(' ').join('-').toLowerCase() || '';
       const showRatingKey = findShowRatingKeyBySlug(libraryXml, showTitle);
       
-      console.log(showTitle, showRatingKey)
-
       if (showRatingKey) {
         const seasonIndex = determineSeasonIndexFromPath(pathSegments);
-        console.log(seasonIndex)
         if (seasonIndex !== null) {
           const seasonsResult = await fetchChildren(showRatingKey);
-          if (seasonsResult.statusCode === 200 && seasonsResult.data) {
-            const seasonRatingKey = findSeasonRatingKeyInXML(
-              seasonsResult.data,
-              seasonIndex,
-            );
+          if (seasonsResult.success && seasonsResult.data) {
+            const seasonRatingKey = findSeasonRatingKeyInXML(seasonsResult.data, seasonIndex);
+            
             if (seasonRatingKey) {
               const episodesResult = await fetchChildren(seasonRatingKey);
-              if (episodesResult.statusCode === 200 && episodesResult.data) {
-                const epRatingKey = findVideoRatingKeyByFile(
-                  episodesResult.data,
-                  plexFilePath,
-                );
+              if (episodesResult.success && episodesResult.data) {
+                const epRatingKey = findVideoRatingKeyByFile(episodesResult.data, plexFilePath);
+                
                 if (epRatingKey) {
-                  const putResEp = await refreshRatingKey(epRatingKey);
-                  if (putResEp.statusCode === 200) {
-                    response.infoLog += `☒ Refreshed Plex metadata for episode ratingKey ${epRatingKey}\n`;
+                  const refreshResult = await refreshRatingKey(epRatingKey);
+                  if (refreshResult.success) {
                     itemRefreshed = true;
-                  } else {
-                    const errInfoEp = putResEp.error
-                      ? ` Error: ${putResEp.error.message || putResEp.error}`
-                      : '';
-                    response.infoLog += `Attempt to refresh episode ratingKey ${epRatingKey} returned status ${putResEp.statusCode}. URL: ${putResEp.requestedUrl}.${errInfoEp}\n`;
                   }
                 } else {
-                  response.infoLog += `Could not locate episode by file match within season ${seasonIndex}. URL: ${episodesResult.requestedUrl}\n`;
+                  response.infoLog += `Could not locate episode by file match within season ${seasonIndex}\n`;
                 }
               }
             } else {
-              response.infoLog += `Could not determine season for show '${showTitle}'. URL: ${seasonsResult.requestedUrl}\n`;
+              response.infoLog += `Could not determine season for show '${showTitle}'\n`;
             }
           }
         }
       }
     }
-  } else if (listResult.statusCode) {
-    response.infoLog += `Failed to list library contents. Status ${listResult.statusCode}. URL: ${listResult.requestedUrl}\n`;
-  } else if (listResult.error) {
-    response.infoLog += `Error listing library contents: ${
-      listResult.error.message || listResult.error
-    }\n`;
   }
 
   if (!itemRefreshed) {
