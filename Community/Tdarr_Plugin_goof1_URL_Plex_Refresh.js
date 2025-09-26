@@ -341,6 +341,7 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
   if (!itemRefreshed) {
     response.infoLog +=
       'Could not refresh a specific item. The folder scan should still pick up changes.\n';
+      throw new Error(response.infoLog);
   }
 
   return response;
