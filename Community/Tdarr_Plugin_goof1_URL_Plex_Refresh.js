@@ -170,8 +170,6 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
   const refreshRatingKey = async (ratingKey) => request('PUT', `${baseUrl}/library/metadata/${encodeURIComponent(ratingKey)}/refresh?X-Plex-Token=${token}`);
 
   const findVideoRatingKeyByFile = (xmlText, filePath) => {
-    console.log(xmlText)
-    console.log('\n\n', filePath)
     const needleLocal = `file="${filePath.replace(/"/g, '\\"')}"`;
     const idxLocal = xmlText.indexOf(needleLocal);
     if (idxLocal === -1) return null;
@@ -289,7 +287,7 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
       response.infoLog +=
         'Could not locate item by file path in movie library. Trying TV show fallback...\n';
       const pathSegments = plexFilePath.split('/').filter((s) => s);
-      const showTitle = pathSegments[pathSegments.length - 3] || '';
+      const showTitle = pathSegments[pathSegments.length - 3].replace(/\s*\(\d{4}\)$/, '').trim() || '';
       const showRatingKey = findShowRatingKeyByTitle(libraryXml, showTitle);
 
       if (showRatingKey) {
