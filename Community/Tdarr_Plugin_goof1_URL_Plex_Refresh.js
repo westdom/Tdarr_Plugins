@@ -181,9 +181,9 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
     return rkMatchLocal && rkMatchLocal[1] ? rkMatchLocal[1] : null;
   };
 
-  const findShowRatingKeyByTitle = (xmlText, title) => {
+  const findShowRatingKeyBySlug = (xmlText, title) => {
     const escTitleLocal = title.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    const titleNeedleLocal = `title="${escTitleLocal}`;
+    const titleNeedleLocal = `slug="${escTitleLocal}`;
     const titleIdxLocal = xmlText.indexOf(titleNeedleLocal);
     if (titleIdxLocal === -1) return null;
     const dirOpenIdxLocal = xmlText.lastIndexOf('<Directory ', titleIdxLocal);
@@ -287,14 +287,11 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
       response.infoLog +=
         'Could not locate item by file path in movie library. Trying TV show fallback...\n';
       const pathSegments = plexFilePath.split('/').filter((s) => s);
-      const showTitle = pathSegments[pathSegments.length - 3].replace(/\s*\(\d{4}\)$/, '').trim() || '';
-      const showRatingKey = findShowRatingKeyByTitle(libraryXml, showTitle);
+      const showTitle = pathSegments[pathSegments.length - 3].replace(/\s*\(\d{4}\)$/, '').trim().split(' ').join('-').toLowerCase() || '';
+      const showRatingKey = findShowRatingKeyBySlug(libraryXml, showTitle);
       
-      console.log(showRatingKey)
-
       if (showRatingKey) {
         const seasonIndex = determineSeasonIndexFromPath(pathSegments);
-        console.log(seasonIndex)
         if (seasonIndex !== null) {
           const seasonsResult = await fetchChildren(showRatingKey);
           if (seasonsResult.statusCode === 200 && seasonsResult.data) {
