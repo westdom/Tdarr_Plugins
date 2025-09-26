@@ -284,7 +284,7 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
       response.infoLog +=
         'Could not locate item by file path in movie library. Trying TV show fallback...\n';
       const pathSegments = plexFilePath.split('/').filter((s) => s);
-      const showTitle = pathSegments[pathSegments.length - 3].replace(/\s*\(\d{4}\)$/, '').trim().split(' ').join('-').toLowerCase() || '';
+      const showTitle = pathSegments[pathSegments.length - 3].replace(/\s*\(\d{4}\)$/, '').replace(/-/g, '').replace(/\s+/g, ' ').trim().split(' ').join('-').toLowerCase() || '';
       const showRatingKey = findShowRatingKeyBySlug(libraryXml, showTitle);
       
       if (showRatingKey) {
