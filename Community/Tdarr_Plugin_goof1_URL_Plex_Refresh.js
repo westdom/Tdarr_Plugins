@@ -182,7 +182,7 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
   };
 
   const findShowRatingKeyByTitle = (xmlText, title) => {
-    const escTitleLocal = title.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+    const escTitleLocal = title.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     const titleNeedleLocal = `title="${escTitleLocal}`;
     const titleIdxLocal = xmlText.indexOf(titleNeedleLocal);
     if (titleIdxLocal === -1) return null;
