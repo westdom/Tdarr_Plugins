@@ -170,7 +170,7 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
   const refreshRatingKey = async (ratingKey) => request('PUT', `${baseUrl}/library/metadata/${encodeURIComponent(ratingKey)}/refresh?X-Plex-Token=${token}`);
 
   const findVideoRatingKeyByFile = (xmlText, filePath) => {
-    const needleLocal = `file="${filePath.replace(/"/g, '\\"')}"`;
+    const needleLocal = `file="${filePath.replace(/"/g, '\\"').replace(/'/g, '&#39;')}"`;
     const idxLocal = xmlText.indexOf(needleLocal);
     if (idxLocal === -1) return null;
     const videoOpenIdxLocal = xmlText.lastIndexOf('<Video ', idxLocal);
@@ -289,9 +289,12 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
       const pathSegments = plexFilePath.split('/').filter((s) => s);
       const showTitle = pathSegments[pathSegments.length - 3].replace(/\s*\(\d{4}\)$/, '').trim() || '';
       const showRatingKey = findShowRatingKeyByTitle(libraryXml, showTitle);
+      
+      console.log(showRatingKey)
 
       if (showRatingKey) {
         const seasonIndex = determineSeasonIndexFromPath(pathSegments);
+        console.log(seasonIndex)
         if (seasonIndex !== null) {
           const seasonsResult = await fetchChildren(showRatingKey);
           if (seasonsResult.statusCode === 200 && seasonsResult.data) {
