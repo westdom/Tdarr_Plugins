@@ -12,3 +12,6 @@
 /Local
 /FlowPluginsTs/LocalFlowPlugins
 /FlowPlugins/LocalFlowPlugins
+
+run_plugin.js
+run.sh
