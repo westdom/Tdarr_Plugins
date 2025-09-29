@@ -207,6 +207,7 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
   const findShowRatingKeyBySlug = (xmlText, title) => {
     const escTitleLocal = title.replace(/&/g, 'and').replace(/"/g, '&quot;').replace(/'/g, '').replace(/!/g, '').replace(/\(/g, '').replace(/\)/g, '').replace(/,/g, '').replace(/&/g, '');
     const titleNeedleLocal = `slug="${escTitleLocal}"`;
+    console.log(titleNeedleLocal);
     const titleIdxLocal = xmlText.indexOf(titleNeedleLocal);
     if (titleIdxLocal === -1) return null;
     const dirOpenIdxLocal = xmlText.lastIndexOf('<Directory ', titleIdxLocal);
@@ -284,20 +285,22 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
       response.infoLog +=
         'Could not locate item by file path in movie library. Trying TV show fallback...\n';
       const pathSegments = plexFilePath.split('/').filter((s) => s);
-      const showTitle = pathSegments[pathSegments.length - 3].replace(/\s*\(\d{4}\)$/, '').replace(/ - /g, '').replace(/\s+/g, ' ').trim().split(' ').join('-').toLowerCase() || '';
+      const showTitle = pathSegments[pathSegments.length - 3].replace(/\s*\(\d{4}\)$/, '').replace(/ - /g, '-').replace(/\s+/g, ' ').trim().split(' ').join('-').toLowerCase() || '';
       const showRatingKey = findShowRatingKeyBySlug(libraryXml, showTitle);
-
+      console.log(showRatingKey);
       if (showRatingKey) {
         const seasonIndex = determineSeasonIndexFromPath(pathSegments);
+        console.log(seasonIndex);
         if (seasonIndex !== null) {
           const seasonsResult = await fetchChildren(showRatingKey);
           if (seasonsResult.success && seasonsResult.data) {
             const seasonRatingKey = findSeasonRatingKeyInXML(seasonsResult.data, seasonIndex);
-
+            console.log(seasonRatingKey);
             if (seasonRatingKey) {
               const episodesResult = await fetchChildren(seasonRatingKey);
               if (episodesResult.success && episodesResult.data) {
                 const epRatingKey = findVideoRatingKeyByFile(episodesResult.data, plexFilePath);
+                console.log(epRatingKey);
                 if (epRatingKey) {
                   const refreshResult = await refreshRatingKey(epRatingKey);
                   if (refreshResult.success) {
