@@ -193,7 +193,7 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
 
 
   const findVideoRatingKeyByFile = (xmlText, filePath) => {
-    const needleLocal = `file="${filePath.replace(/"/g, '\\"').replace(/'/g, '&#39;')}"`;
+    const needleLocal = `file="${filePath.replace(/"/g, '\\"').replace(/'/g, '&#39;').replace(/×/g, '&#215;')}"`;
     const idxLocal = xmlText.indexOf(needleLocal);
     if (idxLocal === -1) return null;
     const videoOpenIdxLocal = xmlText.lastIndexOf('<Video ', idxLocal);
@@ -206,7 +206,6 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
 
   const findShowRatingKeyBySlug = (xmlText, title) => {
     const escTitleLocal = title.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '').replace(/!/g, '').replace(/\(/g, '').replace(/\)/g, '');
-    console.log(escTitleLocal);
     const titleNeedleLocal = `slug="${escTitleLocal}`;
     const titleIdxLocal = xmlText.indexOf(titleNeedleLocal);
     if (titleIdxLocal === -1) return null;
