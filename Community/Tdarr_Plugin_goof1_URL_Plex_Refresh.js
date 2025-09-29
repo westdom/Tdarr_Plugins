@@ -193,7 +193,7 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
 
 
   const findVideoRatingKeyByFile = (xmlText, filePath) => {
-    const needleLocal = `file="${filePath.replace(/"/g, '\\"').replace(/'/g, '&#39;').replace(/×/g, '&#215;')}"`;
+    const needleLocal = `file="${filePath.replace(/"/g, '\\"').replace(/'/g, '&#39;').replace(/×/g, '&#215;').replace(/&/g, '&amp;')}"`;
     const idxLocal = xmlText.indexOf(needleLocal);
     if (idxLocal === -1) return null;
     const videoOpenIdxLocal = xmlText.lastIndexOf('<Video ', idxLocal);
@@ -205,8 +205,8 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
   };
 
   const findShowRatingKeyBySlug = (xmlText, title) => {
-    const escTitleLocal = title.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '').replace(/!/g, '').replace(/\(/g, '').replace(/\)/g, '');
-    const titleNeedleLocal = `slug="${escTitleLocal}`;
+    const escTitleLocal = title.replace(/&/g, 'and').replace(/"/g, '&quot;').replace(/'/g, '').replace(/!/g, '').replace(/\(/g, '').replace(/\)/g, '').replace(/,/g, '').replace(/&/g, '');
+    const titleNeedleLocal = `slug="${escTitleLocal}"`;
     const titleIdxLocal = xmlText.indexOf(titleNeedleLocal);
     if (titleIdxLocal === -1) return null;
     const dirOpenIdxLocal = xmlText.lastIndexOf('<Directory ', titleIdxLocal);
@@ -286,19 +286,18 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
       const pathSegments = plexFilePath.split('/').filter((s) => s);
       const showTitle = pathSegments[pathSegments.length - 3].replace(/\s*\(\d{4}\)$/, '').replace(/ - /g, '').replace(/\s+/g, ' ').trim().split(' ').join('-').toLowerCase() || '';
       const showRatingKey = findShowRatingKeyBySlug(libraryXml, showTitle);
-      
+
       if (showRatingKey) {
         const seasonIndex = determineSeasonIndexFromPath(pathSegments);
         if (seasonIndex !== null) {
           const seasonsResult = await fetchChildren(showRatingKey);
           if (seasonsResult.success && seasonsResult.data) {
             const seasonRatingKey = findSeasonRatingKeyInXML(seasonsResult.data, seasonIndex);
-            
+
             if (seasonRatingKey) {
               const episodesResult = await fetchChildren(seasonRatingKey);
               if (episodesResult.success && episodesResult.data) {
                 const epRatingKey = findVideoRatingKeyByFile(episodesResult.data, plexFilePath);
-                
                 if (epRatingKey) {
                   const refreshResult = await refreshRatingKey(epRatingKey);
                   if (refreshResult.success) {
