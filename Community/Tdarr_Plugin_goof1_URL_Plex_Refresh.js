@@ -206,10 +206,14 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
 
   const findShowRatingKeyBySlug = (xmlText, title) => {
     const escTitleLocal = title.replace(/&/g, 'and').replace(/"/g, '&quot;').replace(/'/g, '').replace(/!/g, '').replace(/\(/g, '').replace(/\)/g, '').replace(/,/g, '').replace(/&/g, '');
-    const titleNeedleLocal = `slug="${escTitleLocal}"`;
-    console.log(titleNeedleLocal);
-    const titleIdxLocal = xmlText.indexOf(titleNeedleLocal);
-    if (titleIdxLocal === -1) return null;
+    const slugNeedleLocal = `slug="${escTitleLocal}"`;
+    response.infoLog += (`slugNeedleLocal: ${slugNeedleLocal}` + '\n');
+    let titleIdxLocal = xmlText.indexOf(slugNeedleLocal);
+    if (titleIdxLocal === -1) {
+      const titleNeedleLocal = `title="${escTitleLocal.split('-').join(' ')}"`;
+      titleIdxLocal = xmlText.toLowerCase().indexOf(titleNeedleLocal);
+      if (titleIdxLocal === -1) return null;
+    };
     const dirOpenIdxLocal = xmlText.lastIndexOf('<Directory ', titleIdxLocal);
     const dirTagEndIdxLocal = xmlText.indexOf('>', dirOpenIdxLocal);
     if (dirOpenIdxLocal === -1 || dirTagEndIdxLocal === -1) return null;
@@ -287,20 +291,20 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
       const pathSegments = plexFilePath.split('/').filter((s) => s);
       const showTitle = pathSegments[pathSegments.length - 3].replace(/\s*\(\d{4}\)$/, '').replace(/ - /g, '-').replace(/\s+/g, ' ').trim().split(' ').join('-').toLowerCase() || '';
       const showRatingKey = findShowRatingKeyBySlug(libraryXml, showTitle);
-      console.log(showRatingKey);
+      response.infoLog += (`showRatingKey: ${showRatingKey}` + '\n');
       if (showRatingKey) {
         const seasonIndex = determineSeasonIndexFromPath(pathSegments);
-        console.log(seasonIndex);
+        response.infoLog += (`seasonIndex: ${seasonIndex}` + '\n');
         if (seasonIndex !== null) {
           const seasonsResult = await fetchChildren(showRatingKey);
           if (seasonsResult.success && seasonsResult.data) {
             const seasonRatingKey = findSeasonRatingKeyInXML(seasonsResult.data, seasonIndex);
-            console.log(seasonRatingKey);
+            response.infoLog += (`seasonRatingKey: ${seasonRatingKey}` + '\n');
             if (seasonRatingKey) {
               const episodesResult = await fetchChildren(seasonRatingKey);
               if (episodesResult.success && episodesResult.data) {
                 const epRatingKey = findVideoRatingKeyByFile(episodesResult.data, plexFilePath);
-                console.log(epRatingKey);
+                response.infoLog += (`epRatingKey: ${epRatingKey}` + '\n');
                 if (epRatingKey) {
                   const refreshResult = await refreshRatingKey(epRatingKey);
                   if (refreshResult.success) {
