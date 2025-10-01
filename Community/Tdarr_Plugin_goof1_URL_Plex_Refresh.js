@@ -1,3 +1,8 @@
+// List any npm dependencies which the plugin needs, they will be auto installed when the plugin runs:
+module.exports.dependencies = [
+  'xml-js',
+];
+
 // tdarrSkipTest
 const details = () => ({
   id: 'Tdarr_Plugin_goof1_URL_Plex_Refresh',
@@ -111,7 +116,7 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
   const lib = require('../methods/lib')();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars,no-param-reassign
   inputs = lib.loadDefaultValues(inputs, details);
-
+  const xmlJs = require('xml-js');
 
   const response = {
     file,
@@ -127,133 +132,10 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
   const key = inputs.Library_Key;
   const plexPath = inputs.Plex_Path;
   const tdarrPath = inputs.Tdarr_Path;
-  let itemRefreshed = false;
 
   if (!type || !url || !token || !key) {
     throw new Error('Url_Protocol, Plex_Url, Plex_Token, and Library_Key are all required');
   }
-
-  const fetchLibraryContents = async (libraryKey) => {
-    try {
-      const res = await fetch(`${baseUrl}/library/sections/${libraryKey}/all?X-Plex-Token=${token}`);
-      if (res.status === 200) {
-        return { success: true, data: await res.text() };
-      }
-      response.infoLog += `Failed to list library contents. Status ${res.status}\n`;
-      return { success: false };
-    } catch (error) {
-      response.infoLog += `Error listing library contents: ${error.message}\n`;
-      return { success: false };
-    }
-  };
-
-  const fetchChildren = async (ratingKey) => {
-    try {
-      const res = await fetch(`${baseUrl}/library/metadata/${encodeURIComponent(ratingKey)}/children?X-Plex-Token=${token}`);
-      if (res.status === 200) {
-        return { success: true, data: await res.text() };
-      }
-      response.infoLog += `Failed to fetch children for ratingKey ${ratingKey}. Status ${res.status}\n`;
-      return { success: false };
-    } catch (error) {
-      response.infoLog += `Error fetching children for ratingKey ${ratingKey}: ${error.message}\n`;
-      return { success: false };
-    }
-  };
-
-  const refreshRatingKey = async (ratingKey) => {
-    try {
-      const res = await fetch(`${baseUrl}/library/metadata/${encodeURIComponent(ratingKey)}/refresh?X-Plex-Token=${token}`, { method: 'PUT' });
-      if (res.status === 200) {
-        response.infoLog += `☒ Refreshed Plex metadata for ratingKey ${ratingKey}\n`;
-        return { success: true };
-      }
-      response.infoLog += `Attempt to refresh ratingKey ${ratingKey} returned status ${res.status}\n`;
-      return { success: false };
-    } catch (error) {
-      response.infoLog += `Error refreshing ratingKey ${ratingKey}: ${error.message}\n`;
-      return { success: false };
-    }
-  };
-
-  const refreshFolder = async (folderPath) => {
-    try {
-      const res = await fetch(`${baseUrl}/library/sections/${key}/refresh?path=${encodeURIComponent(folderPath)}&X-Plex-Token=${token}`);
-      if (res.status === 200) {
-        response.infoLog += '☒ Above shown folder scanned in Plex! \n';
-        return { success: true };
-      }
-      response.infoLog += `Failed to refresh folder. Status ${res.status}\n`;
-      return { success: false };
-    } catch (error) {
-      response.infoLog += `Error refreshing folder: ${error.message}\n`;
-      return { success: false };
-    }
-  };
-
-
-  const findVideoRatingKeyByFile = (xmlText, filePath) => {
-    const needleLocal = `file="${filePath.replace(/"/g, '\\"').replace(/'/g, '&#39;').replace(/×/g, '&#215;').replace(/&/g, '&amp;')}"`;
-    const idxLocal = xmlText.indexOf(needleLocal);
-    if (idxLocal === -1) return null;
-    const videoOpenIdxLocal = xmlText.lastIndexOf('<Video ', idxLocal);
-    const videoTagEndIdxLocal = xmlText.indexOf('>', videoOpenIdxLocal);
-    if (videoOpenIdxLocal === -1 || videoTagEndIdxLocal === -1) return null;
-    const videoOpenTagLocal = xmlText.substring(videoOpenIdxLocal, videoTagEndIdxLocal + 1);
-    const rkMatchLocal = videoOpenTagLocal.match(/ratingKey="([^"]+)"/);
-    return rkMatchLocal && rkMatchLocal[1] ? rkMatchLocal[1] : null;
-  };
-
-  const findShowRatingKeyBySlug = (xmlText, title) => {
-    const escTitleLocal = title.replace(/&/g, 'and').replace(/"/g, '&quot;').replace(/'/g, '').replace(/!/g, '').replace(/\(/g, '').replace(/\)/g, '').replace(/,/g, '').replace(/&/g, '');
-    const slugNeedleLocal = `slug="${escTitleLocal}"`;
-    response.infoLog += (`slugNeedleLocal: ${slugNeedleLocal}` + '\n');
-    let titleIdxLocal = xmlText.indexOf(slugNeedleLocal);
-    if (titleIdxLocal === -1) {
-      const titleNeedleLocal = `title="${escTitleLocal.split('-').join(' ')}"`;
-      titleIdxLocal = xmlText.toLowerCase().indexOf(titleNeedleLocal);
-      if (titleIdxLocal === -1) return null;
-    };
-    const dirOpenIdxLocal = xmlText.lastIndexOf('<Directory ', titleIdxLocal);
-    const dirTagEndIdxLocal = xmlText.indexOf('>', dirOpenIdxLocal);
-    if (dirOpenIdxLocal === -1 || dirTagEndIdxLocal === -1) return null;
-    const dirOpenTagLocal = xmlText.substring(dirOpenIdxLocal, dirTagEndIdxLocal + 1);
-    if (!/type="show"/.test(dirOpenTagLocal)) return null;
-    const rkMatchDirLocal = dirOpenTagLocal.match(/ratingKey="([^"]+)"/);
-    return rkMatchDirLocal && rkMatchDirLocal[1] ? rkMatchDirLocal[1] : null;
-  };
-
-  const determineSeasonIndexFromPath = (segments) => {
-    for (let i = segments.length - 1; i >= 0; i -= 1) {
-      const seg = segments[i];
-      const m = seg.match(/^Season\s+(\d+)$/i);
-      if (m) return parseInt(m[1], 10);
-      if (/^Specials$/i.test(seg)) return 0;
-    }
-    const name = segments[segments.length - 1] || '';
-    const m2 = name.match(/S(\d{1,2})E\d{1,3}/i);
-    if (m2) return parseInt(m2[1], 10);
-    return null;
-  };
-
-  const findSeasonRatingKeyInXML = (xmlText, seasonIndex) => {
-    const dirRegex = /<Directory [^>]*type="season"[^>]*>/g;
-    let match;
-    // eslint-disable-next-line no-cond-assign
-    while ((match = dirRegex.exec(xmlText)) !== null) {
-      const tag = match[0];
-      const idxAttr = tag.match(/index="(\d+)"/);
-      const titleAttr = tag.match(/title="([^"]+)"/);
-      if ((idxAttr && parseInt(idxAttr[1], 10) === seasonIndex)
-        || (titleAttr && titleAttr[1].toLowerCase() === `season ${seasonIndex}`.toLowerCase())
-        || (seasonIndex === 0 && titleAttr && /^Specials$/i.test(titleAttr[1]))) {
-        const rk = tag.match(/ratingKey="([^"]+)"/);
-        if (rk) return rk[1];
-      }
-    }
-    return null;
-  };
-
 
   // Compute the full file path as Plex sees it, then the folder path for fallback
   let plexFilePath = file.file;
@@ -268,69 +150,174 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
 
   const baseUrl = `${type}://${url}`;
 
-  // Always attempt to refresh by folder path (without force)
-  response.infoLog += `Attempting folder refresh for ${plexFolderPath}\n`;
-  await refreshFolder(plexFolderPath);
+  response.infoLog += `Folder refresh for ${plexFolderPath}\n`;
+  await refreshFolder({ folderPath: plexFolderPath, baseUrl, key, token });
 
-  // Attempt to refresh the specific item
-  const listResult = await fetchLibraryContents(key);
-  if (listResult.success && listResult.data) {
-    const libraryXml = listResult.data;
+  const listResult = await fetchLibraryContents({ libraryKey: key, baseUrl, token, xmlJs });
+  if (!listResult.success || !listResult.data) {
+    response.infoLog += `Could not fetch library contents\n`;
+    throw new Error(response.infoLog);
+  }
+  const libraryXml = listResult.data;
 
-    // Method 1: Find movie or episode directly by file path
-    const videoRatingKey = findVideoRatingKeyByFile(libraryXml, plexFilePath);
-    if (videoRatingKey) {
-      const refreshResult = await refreshRatingKey(videoRatingKey);
-      if (refreshResult.success) {
-        itemRefreshed = true;
-      }
-    } else {
-      // Method 2: Fallback for TV shows if direct file match fails
-      response.infoLog +=
-        'Could not locate item by file path in movie library. Trying TV show fallback...\n';
-      const pathSegments = plexFilePath.split('/').filter((s) => s);
-      const showTitle = pathSegments[pathSegments.length - 3].replace(/\s*\(\d{4}\)$/, '').replace(/ - /g, '-').replace(/\s+/g, ' ').trim().split(' ').join('-').toLowerCase() || '';
-      const showRatingKey = findShowRatingKeyBySlug(libraryXml, showTitle);
-      response.infoLog += (`showRatingKey: ${showRatingKey}` + '\n');
-      if (showRatingKey) {
-        const seasonIndex = determineSeasonIndexFromPath(pathSegments);
-        response.infoLog += (`seasonIndex: ${seasonIndex}` + '\n');
-        if (seasonIndex !== null) {
-          const seasonsResult = await fetchChildren(showRatingKey);
-          if (seasonsResult.success && seasonsResult.data) {
-            const seasonRatingKey = findSeasonRatingKeyInXML(seasonsResult.data, seasonIndex);
-            response.infoLog += (`seasonRatingKey: ${seasonRatingKey}` + '\n');
-            if (seasonRatingKey) {
-              const episodesResult = await fetchChildren(seasonRatingKey);
-              if (episodesResult.success && episodesResult.data) {
-                const epRatingKey = findVideoRatingKeyByFile(episodesResult.data, plexFilePath);
-                response.infoLog += (`epRatingKey: ${epRatingKey}` + '\n');
-                if (epRatingKey) {
-                  const refreshResult = await refreshRatingKey(epRatingKey);
-                  if (refreshResult.success) {
-                    itemRefreshed = true;
-                  }
-                } else {
-                  response.infoLog += `Could not locate episode by file match within season ${seasonIndex}\n`;
-                }
-              }
-            } else {
-              response.infoLog += `Could not determine season for show '${showTitle}'\n`;
-            }
-          }
-        }
+  const videoResult = findVideoByFilePath({ parsedXml: libraryXml, filePath: plexFilePath });
+  if (videoResult && videoResult._attributes.ratingKey) {
+    response.infoLog += `Refreshing movie metadata for ${videoResult._attributes.title}\n`;
+    await refreshRatingKey({ ratingKey: videoResult._attributes.ratingKey, baseUrl, token });
+    return response;
+  } 
+
+  response.infoLog +=
+    'Could not locate item by file path in movie library. Trying TV show...\n';
+
+  const pathSegments = plexFilePath.split('/').filter((s) => s);
+  const normalizedShowTitle = pathSegments[pathSegments.length - 3].toLowerCase().trim();
+  const seasonIndex = determineSeasonIndexFromPath({ segments: pathSegments });
+
+  response.infoLog += `Attempting to find TV show ${normalizedShowTitle}\n`;
+  const showResult = findDirectoryByTitle({ parsedXml: libraryXml, title: normalizedShowTitle });
+  response.infoLog += `Found TV show ${showResult._attributes.title}\n`;
+
+  const seasonsResult = await fetchChildren({ ratingKey: showResult._attributes.ratingKey, baseUrl, token, xmlJs });
+  if (!seasonsResult.success || !seasonsResult.data) {
+    response.infoLog += `Could not fetch seasons contents\n`;
+    throw new Error(response.infoLog);
+  }
+
+  response.infoLog += `Attempting to find season ${seasonIndex}\n`;
+  const seasonRatingKey = findSeasonRatingKeyInXML({ xmlText: seasonsResult.data, seasonIndex });
+  const episodesResult = await fetchChildren({ ratingKey: seasonRatingKey, baseUrl, token, xmlJs });
+  if (!episodesResult.success || !episodesResult.data) {
+    response.infoLog += `Could not fetch episodes contents\n`;
+    throw new Error(response.infoLog);
+  }
+
+  response.infoLog += `Attempting to find episode ${plexFilePath}\n`;
+  const epResult = findVideoByFilePath({ parsedXml: episodesResult.data, filePath: plexFilePath });
+  response.infoLog += `Found episode S${epResult._attributes.parentIndex}E${epResult._attributes.index} - ${epResult._attributes.title}\n`;
+
+  response.infoLog += `Refreshing episode metadata for S${epResult._attributes.parentIndex}E${epResult._attributes.index} - ${showResult._attributes.title}\n`;
+  await refreshRatingKey({ ratingKey: epResult._attributes.ratingKey, baseUrl, token });
+
+  return response;
+};
+
+const findSeasonRatingKeyInXML = ({ xmlText, seasonIndex }) => xmlText.MediaContainer[0].Directory.find((directory) => 
+  directory._attributes.type === 'season' && directory._attributes.index == seasonIndex)?._attributes.ratingKey;
+
+const determineSeasonIndexFromPath = ({ segments }) => {
+  for (let i = segments.length - 1; i >= 0; i -= 1) {
+    const seg = segments[i];
+    const m = seg.match(/^Season\s+(\d+)$/i);
+    if (m) return parseInt(m[1], 10);
+    if (/^Specials$/i.test(seg)) return 0;
+  }
+  const name = segments[segments.length - 1] || '';
+  const m2 = name.match(/S(\d{1,2})E\d{1,3}/i);
+  if (m2) return parseInt(m2[1], 10);
+  return null;
+};
+
+const findDirectoryByTitle = ({ parsedXml, title }) => {
+  const normalizedInputTitle = title.toLowerCase().trim();
+  return parsedXml.MediaContainer[0].Directory.map((directory) => {
+    directory.distance = levenshteinDistance(normalizedInputTitle, directory._attributes.title.toLowerCase());
+    return directory;
+  })
+  .sort((a, b) => a.distance - b.distance)[0];
+};
+
+const findVideoByFilePath = ({ parsedXml, filePath }) => {
+  const normalizedFilePath = filePath.toLowerCase().trim();
+  return parsedXml.MediaContainer[0].Video?.map((video) => {
+    video.distance = levenshteinDistance(normalizedFilePath, video.Media[0].Part[0]._attributes.file.toLowerCase());
+    return video;
+  })
+  .sort((a, b) => a.distance - b.distance)[0];
+};
+
+const refreshRatingKey = async ({ ratingKey, baseUrl, token }) => {
+  try {
+    const res = await fetch(`${baseUrl}/library/metadata/${encodeURIComponent(ratingKey)}/refresh?X-Plex-Token=${token}`, { method: 'PUT' });
+    if (res.status === 200) {
+      return { success: true };
+    }
+    return { success: false };
+  } catch (error) {
+    return { success: false };
+  }
+};
+
+const refreshFolder = async ({ folderPath, baseUrl, key, token }) => {
+  try {
+    const res = await fetch(`${baseUrl}/library/sections/${key}/refresh?path=${encodeURIComponent(folderPath)}&X-Plex-Token=${token}`);
+    if (res.status === 200) {
+      return { success: true };
+    }
+    return { success: false };
+  } catch (error) {
+    return { success: false };
+  }
+};
+
+const fetchLibraryContents = async ({ libraryKey, baseUrl, token, xmlJs }) => {
+  try {
+    const res = await fetch(`${baseUrl}/library/sections/${libraryKey}/all?X-Plex-Token=${token}`);
+    if (res.status === 200) {
+      return { success: true, data: xmlJs.xml2js(await res.text(), { compact: true, alwaysArray: true }) };
+    }
+    return { success: false };
+  } catch (error) {
+    return { success: false };
+  }
+};
+
+const fetchChildren = async ({ ratingKey, baseUrl, token, xmlJs }) => {
+  try {
+    const res = await fetch(`${baseUrl}/library/metadata/${encodeURIComponent(ratingKey)}/children?X-Plex-Token=${token}`);
+    if (res.status === 200) {
+      return { success: true, data: xmlJs.xml2js(await res.text(), { compact: true, alwaysArray: true }) };
+    }
+    return { success: false };
+  } catch (error) {
+    return { success: false };
+  }
+};
+
+const levenshteinDistance = (string1, string2) => {
+  // Handle edge cases
+  if (string1 === string2) return 0;
+  if (string1.length === 0) return string2.length;
+  if (string2.length === 0) return string1.length;
+
+  // Create a matrix to store distances
+  const matrix = [];
+  
+  // Initialize the first row and column
+  for (let i = 0; i <= string2.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= string1.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  // Fill the matrix
+  for (let i = 1; i <= string2.length; i++) {
+    for (let j = 1; j <= string1.length; j++) {
+      if (string2.charAt(i - 1) === string1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
       }
     }
   }
 
-  if (!itemRefreshed) {
-    response.infoLog +=
-      'Could not refresh a specific item. The folder scan should still pick up changes.\n';
-      throw new Error(response.infoLog);
-  }
-
-  return response;
-};
+  return matrix[string2.length][string1.length];
+}
 
 module.exports.details = details;
 module.exports.plugin = plugin;
