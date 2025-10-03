@@ -152,6 +152,7 @@ const plugin = async (file, librarySettings, inputs, otherArguments) => {
 
   response.infoLog += `Folder refresh for ${plexFolderPath}\n`;
   await refreshFolder({ folderPath: plexFolderPath, baseUrl, key, token });
+  await new Promise((resolve) => setTimeout(resolve, 1000));
 
   const listResult = await fetchLibraryContents({ libraryKey: key, baseUrl, token, xmlJs });
   if (!listResult.success || !listResult.data) {
