@@ -222,7 +222,7 @@ const determineSeasonIndexFromPath = ({ segments }) => {
 const findDirectoryByTitle = ({ parsedXml, title }) => {
   const normalizedInputTitle = title.toLowerCase().trim();
   return parsedXml.MediaContainer[0].Directory.map((directory) => {
-    directory.distance = levenshteinDistance(normalizedInputTitle, directory._attributes.title.toLowerCase());
+    directory.distance = levenshteinDistanceWithYearStripping(normalizedInputTitle, directory._attributes.title.toLowerCase());
     return directory;
   })
   .sort((a, b) => a.distance - b.distance)[0];
@@ -231,7 +231,7 @@ const findDirectoryByTitle = ({ parsedXml, title }) => {
 const findVideoByFilePath = ({ parsedXml, filePath }) => {
   const normalizedFilePath = filePath.toLowerCase().trim();
   return parsedXml.MediaContainer[0].Video?.map((video) => {
-    video.distance = levenshteinDistance(normalizedFilePath, video.Media[0].Part[0]._attributes.file.toLowerCase());
+    video.distance = levenshteinDistanceWithYearStripping(normalizedFilePath, video.Media[0].Part[0]._attributes.file.toLowerCase());
     return video;
   })
   .sort((a, b) => a.distance - b.distance)[0];
@@ -285,6 +285,8 @@ const fetchChildren = async ({ ratingKey, baseUrl, token, xmlJs }) => {
   }
 };
 
+
+
 const levenshteinDistance = (string1, string2) => {
   // Handle edge cases
   if (string1 === string2) return 0;
@@ -318,6 +320,20 @@ const levenshteinDistance = (string1, string2) => {
   }
 
   return matrix[string2.length][string1.length];
+}
+
+const levenshteinDistanceWithYearStripping = (string1, string2) => {
+  // Call levenshteinDistance with the original string1
+  const originalDistance = levenshteinDistance(string1, string2);
+  
+  // Strip year from string1 (e.g., "The Wire (2002)" becomes "The Wire")
+  const string1WithoutYear = string1.replace(/\s*\(\d{4}\)\s*$/, '').trim();
+  
+  // Call levenshteinDistance with the year-stripped string1
+  const strippedDistance = levenshteinDistance(string1WithoutYear, string2);
+  
+  // Return the result with the lowest distance
+  return Math.min(originalDistance, strippedDistance);
 }
 
 module.exports.details = details;
