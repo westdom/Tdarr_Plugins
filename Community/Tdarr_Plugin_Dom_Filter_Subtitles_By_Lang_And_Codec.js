@@ -138,10 +138,10 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
   };
   const chiSubStreamsHaveTraditionalAndChinese = (languagesList.includes('zho') || languagesList.includes('chi'))
         && allSubtitleStreams.some(
-          (s) => typeof s.tags.title === 'string' && s.tags.title.toLowerCase().includes('simplified'),
+          (s) => typeof s?.tags?.title === 'string' && s.tags.title.toLowerCase().includes('simplified'),
         )
         && allSubtitleStreams.some(
-          (s) => typeof s.tags.title === 'string' && s.tags.title.toLowerCase().includes('traditional'),
+          (s) => typeof s?.tags?.title === 'string' && s.tags.title.toLowerCase().includes('traditional'),
         );
 
   const seenPairs = new Set();
@@ -162,7 +162,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
     .filter((s) => {
       if (!onlyKeepFirstPerLanguage) return true;
       if (chiSubStreamsHaveTraditionalAndChinese
-        && typeof title === 'string'
+        && typeof s?.tags?.title === 'string'
          && s.tags.title.toLowerCase().includes('traditional')) return false;
 
       const key = getSetKey(s);
